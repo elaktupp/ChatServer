@@ -51,13 +51,23 @@ public class ServerClientBackEnd implements Runnable {
             } catch (IOException ex1) {
                 // Nothing we can do...
             }
-            ChatServer.removeClient(this);
+            ChatServer.removeClientFromList(this);
         } catch (IOException | ClassNotFoundException ex) {
             ex.printStackTrace();
         }
     }
     
+    /**
+     * Sends the server message to the client represented by this instance.
+     * 
+     * @param obj the message to be sent
+     */
     public void sendMessage(Object obj) {
+        
+        if (ChatServer.TESTING) {
+            System.out.println("SYSTEM BACK: sendMessage "+obj.toString());
+        }
+        
         try {
             output.writeObject(obj);
             output.flush();
@@ -74,9 +84,16 @@ public class ServerClientBackEnd implements Runnable {
         this.userName = userName;
     }
 
+    /**
+     * Handles different messages sent to the server.
+     * 
+     * @param obj the message can be ChatConnect, ChatMessage or ChatDisconnect
+     */
     private void messageHandler(Object obj) {
 
-        System.out.println("SYSTEM BACK: "+obj.toString());
+        if (ChatServer.TESTING) {
+            System.out.println("SYSTEM BACK: messageHandler "+obj.toString());
+        }
         
         if (obj instanceof ChatMessage) {
             
@@ -97,7 +114,11 @@ public class ServerClientBackEnd implements Runnable {
             }
             resp.setUserName(validName);
             sendMessage(resp);
+            
+            ChatServer.sendClientListUpdate();
+ 
         } else if (obj instanceof ChatDisconnect) {
+            
             try {
                 output.close();
                 input.close();
@@ -106,7 +127,14 @@ public class ServerClientBackEnd implements Runnable {
                 // Nothing we can do...
                 ex.printStackTrace();
             }
-            ChatServer.removeClient(this);
+            
+            ChatServer.removeClientFromList(this);
+            ChatServer.sendClientListUpdate();
+            
+        } else {
+            // Should never happen
+            System.out.println("SYSTEM BACK: What was that?");
+            System.exit(1);
         }
     }
 

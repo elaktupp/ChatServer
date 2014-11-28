@@ -9,7 +9,6 @@ import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.ArrayList;
-import message.Chat;
 import message.ChatUserListUpdate;
 
 /**
@@ -17,10 +16,11 @@ import message.ChatUserListUpdate;
  * @author Ohjelmistokehitys
  */
 public class ChatServer {
-
-    static ArrayList<ServerClientBackEnd> clients = new ArrayList();
     
-    // User name array that is sent to the client
+    public static final boolean TESTING = true;
+
+    // Clients connected to the server
+    private static ArrayList<ServerClientBackEnd> clients = new ArrayList();
     
     public static void main(String[] args) {
 
@@ -29,61 +29,104 @@ public class ChatServer {
             ServerSocket server = new ServerSocket(3010);
             // instead of hard coded port this could for example
             // read the value from a configuration file, etc.
-            System.out.println("SERVER: Online");            
+            if (ChatServer.TESTING) {
+                System.out.println("SERVER: main Online ");
+            }
             // Start to listen and wait connections
             while(true) {
                 // Waits here for a client to connect (i.e. creates socket)
                 Socket temp = server.accept();
-                addClient(temp);
-
+                addClientSocketToList(temp);
             }
         } catch (IOException ex) {
             ex.printStackTrace();
         }
     }
     
+    /**
+     * Broadcasts message to all connected clients that have the user name set
+     * i.e. have sent the ChatConnect message.
+     * 
+     * @param obj the message can be ChatMessage or ChatUserListUpdate
+     */
     public static void broadcastMessage(Object obj) {
         
-        System.out.println("SERVER: broadcastMessage "+obj.toString());
-        
-        // Pass message to all connected clients
+        if (ChatServer.TESTING) {
+            System.out.println("SERVER: ("+clients.size()+") broadcastMessage "+obj.toString());
+        }
+
         for (ServerClientBackEnd it : clients) {
-            it.sendMessage(obj);
+            if (it.getUserName() != null) {
+                it.sendMessage(obj);
+            }
         }        
     }
     
-    public static void addClient(Socket s) {
+    /**
+     * Creates a new server client back end with the socket received as
+     * parameter. Then puts it to its own thread.
+     * 
+     * @param s the socket for the new back end
+     */
+    public static void addClientSocketToList(Socket s) {
+        
         ServerClientBackEnd backEnd = new ServerClientBackEnd(s);
 
-        System.out.println("SERVER: Add client "+backEnd);
+        if (ChatServer.TESTING) {
+            System.out.println("SERVER: addClientSocketToList "+s+" "+backEnd);
+        }
         clients.add(backEnd);
         
-        Thread t = new Thread(backEnd);
+        Thread backThread = new Thread(backEnd);
+        backThread.setName("Server Client BET");
         // Tell JVM this is background thread, so JVM can kill
         // it when backEnd is destroyed.
-        t.setDaemon(true);
-        t.start();
+        backThread.setDaemon(true);
+        backThread.start();
 
-        //sendClientList();
     }
     
-    public static void removeClient(ServerClientBackEnd client) {
-        // TESTING
-        System.out.println("SERVER: Remove client "+client);
-        System.out.println(clients.remove(client));
-        
-        sendClientList();
+    /**
+     * Removes the given client from the clients list.
+     * 
+     * @param client the client to be removed
+     */
+    public static void removeClientFromList(ServerClientBackEnd client) {
+        if (ChatServer.TESTING) {
+            System.out.println("SERVER: removeClient "+
+                    client+" "+clients.remove(client));
+        } else {
+            clients.remove(client);
+        }
     }
     
-    public static void sendClientList() {
-        System.out.println("SERVER: Send list of clients");
+    /**
+     * Creates an update message containing names of the currently connected
+     * clients and broadcasts it to all connected clients.
+     */
+    public static void sendClientListUpdate() {
+        if (ChatServer.TESTING) {
+            System.out.println("SERVER: Send list of clients");
+        }
         ArrayList<String>names = new ArrayList();
         for (ServerClientBackEnd it : clients) {
-            names.add(it.getUserName());
+            String name = it.getUserName();
+            if (name != null) {
+                names.add(name);
+            }
+            // null is client that has not connected yet with user name
         }   
         broadcastMessage(new ChatUserListUpdate(names));
     }
     
+    /**
+     * The server does not allow multiple clients with same name thus
+     * an index number is added to the names of the clients connecting
+     * after the first of that name.
+     * 
+     * @param name the name to be validated
+     * @return String containing validated name
+     */
     public static String validateUserName(String name) {
         int nameModifier = 0;
         String candidate = name;
@@ -102,7 +145,9 @@ public class ChatServer {
             }
         } while (again);
         
-        System.out.println("SERVER: Validate name "+name+" -> "+candidate);
+        if (ChatServer.TESTING) {
+            System.out.println("SERVER: Validate name "+name+" -> "+candidate);
+        }
         
         return candidate;
     }
