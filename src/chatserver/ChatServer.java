@@ -9,6 +9,7 @@ import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.ArrayList;
+import message.ChatMessage;
 import message.ChatUserListUpdate;
 
 /**
@@ -19,7 +20,9 @@ public class ChatServer {
     
     public static final boolean TESTING = true;
 
-    // Clients connected to the server
+    // Clients have two stages in connection to the server:
+    // 1. Registered, the socket is in clients list without a user name.
+    // 2. Connected, the client has sent ChatConnect with the use name.
     private static ArrayList<ServerClientBackEnd> clients = new ArrayList();
     
     public static void main(String[] args) {
@@ -34,7 +37,7 @@ public class ChatServer {
             }
             // Start to listen and wait connections
             while(true) {
-                // Waits here for a client to connect (i.e. creates socket)
+                // Waits here for a client to register (i.e. creates socket)
                 Socket temp = server.accept();
                 addClientSocketToList(temp);
             }
@@ -44,8 +47,9 @@ public class ChatServer {
     }
     
     /**
-     * Broadcasts message to all connected clients that have the user name set
-     * i.e. have sent the ChatConnect message.
+     * Broadcasts message to all connected clients i.e. the ones that have sent
+     * the ChatConnect message. Clients that are only registered will not have
+     * message sent to them.
      * 
      * @param obj the message can be ChatMessage or ChatUserListUpdate
      */
@@ -55,10 +59,29 @@ public class ChatServer {
             System.out.println("SERVER: ("+clients.size()+") broadcastMessage "+obj.toString());
         }
 
+        String name;
+        Boolean send;
+        
         for (ServerClientBackEnd it : clients) {
-            if (it.getUserName() != null) {
-                it.sendMessage(obj);
+            name = it.getUserName();
+            send = true; // assuming public message
+            if (name != null) {
+                // This one is connected
+                if (obj instanceof ChatMessage) {
+                    ChatMessage msg = (ChatMessage)obj;
+                    if (msg.isIsPrivate()) {
+                        // This is private, is it for this one?
+                        if (!name.equals(msg.getPrivateName())) {
+                            send = false;
+                        }
+                    }
+                }
+                // So do we send message or not?
+                if (send) {
+                    it.sendMessage(obj);
+                }
             }
+            // else { This client is registered, but not connected }
         }        
     }
     
