@@ -5,6 +5,7 @@
  */
 package chatserver;
 
+import java.io.EOFException;
 import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
@@ -22,7 +23,7 @@ import message.ChatMessage; // our very own
  */
 public class ServerClientBackEnd implements Runnable {
 
-    private final Socket socket;
+    private Socket socket;
     private ObjectInputStream input;
     private ObjectOutputStream output;
     private String userName;
@@ -43,18 +44,18 @@ public class ServerClientBackEnd implements Runnable {
                 messageHandler(input.readObject());
                 
             }
-        } catch (SocketException ex) {
-            try {
-                output.close();
-                input.close();
-                socket.close();
-            } catch (IOException ex1) {
-                // Nothing we can do...
-            }
+        } catch (EOFException | SocketException e) {
+            shutdownConnections();
             ChatServer.removeClientFromList(this);
         } catch (IOException | ClassNotFoundException ex) {
             ex.printStackTrace();
         }
+    }
+
+    @Override
+    protected void finalize() throws Throwable {
+        shutdownConnections();
+        super.finalize();
     }
     
     /**
@@ -84,6 +85,19 @@ public class ServerClientBackEnd implements Runnable {
         this.userName = userName;
     }
 
+    private void shutdownConnections() {
+            try {
+                if (output != null) output.close();
+                if (input != null) input.close();
+                if (socket != null) socket.close();
+                output = null;
+                input = null;
+                socket = null;
+            } catch (IOException ex) {
+                // Nothing we can do... at least we tried.
+            }
+    }
+    
     /**
      * Handles different messages sent to the server.
      * 
@@ -119,17 +133,8 @@ public class ServerClientBackEnd implements Runnable {
  
         } else if (obj instanceof ChatDisconnect) {
             
-            try {
-                output.close();
-                input.close();
-                socket.close();
-            } catch (IOException ex) {
-                // Nothing we can do...
-                ex.printStackTrace();
-            }
-            
+            shutdownConnections();
             ChatServer.removeClientFromList(this);
-            ChatServer.sendClientListUpdate();
             
         } else {
             // Should never happen

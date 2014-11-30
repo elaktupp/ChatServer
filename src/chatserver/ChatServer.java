@@ -106,6 +106,10 @@ public class ChatServer {
         // it when backEnd is destroyed.
         backThread.setDaemon(true);
         backThread.start();
+        
+        // We do not send sendClientListUpdate here, since this is just
+        // the socket registering to the server. The connection is not
+        // ready until the ChatConnect comes with the user name.
 
     }
     
@@ -120,6 +124,10 @@ public class ChatServer {
                     client+" "+clients.remove(client));
         } else {
             clients.remove(client);
+        }
+        // Anyone to send the update to?
+        if (clients.isEmpty() == false) {
+            sendClientListUpdate();
         }
     }
     
